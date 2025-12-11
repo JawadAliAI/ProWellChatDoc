@@ -13,6 +13,7 @@ import subprocess
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore
 
 # Load environment variables
 load_dotenv()
@@ -20,10 +21,10 @@ load_dotenv()
 # ==================== ENVIRONMENT VALIDATION ====================
 def validate_environment():
     """Validate required environment variables"""
-    required_vars = ["GEMINI_API_KEY", "FIREBASE_CREDENTIALS"]
-    missing = [var for var in required_vars if not os.getenv(var)]
-    if missing:
-        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+    # FIREBASE_CREDENTIALS is now optional for local fallback
+    # Check for either GEMINI_API_KEY or GROQ_API_KEY
+    if not os.getenv("GEMINI_API_KEY") and not os.getenv("GROQ_API_KEY"):
+        raise ValueError("Missing API Key: Set either GEMINI_API_KEY or GROQ_API_KEY")
 
 validate_environment()
 
@@ -31,15 +32,32 @@ validate_environment()
 # Initialize Gemini client (NO HARDCODED KEY)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# Initialize Firebase
-firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
-cred_dict = json.loads(firebase_creds)
+# Initialize Firebase with Fallback
+db = None
+try:
+    firebase_creds = os.getenv("FIREBASE_CREDENTIALS")
+    if firebase_creds:
+        if os.path.exists(firebase_creds):
+            cred = credentials.Certificate(firebase_creds)
+        else:
+            cred_dict = json.loads(firebase_creds)
+            cred = credentials.Certificate(cred_dict)
 
-if not firebase_admin._apps:
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
+        
+        db = firestore.client()
+        print("✅ Firebase initialized successfully (lazy connection).")
 
-db = firestore.client()
+    else:
+        print("⚠️ No Firebase credentials found. Using local JSON storage.")
+except Exception as e:
+    print(f"⚠️ Firebase initialization failed: {e}. Using local JSON storage.")
+    db = None
+
+# Ensure data directory exists for local storage
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # Initialize FastAPI
 app = FastAPI(title="Dr. HealBot - Medical Consultation API")
@@ -184,6 +202,55 @@ IMPORTANT:
 """
 
 # ==================== HELPER FUNCTIONS ====================
+import re
+import markdown
+
+def remove_emojis(text: str) -> str:
+    """
+    Remove all emojis from a string.
+    """
+    emoji_pattern = re.compile(
+        "[" 
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002700-\U000027BF"  # Dingbats
+        "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
+        "\U00002600-\U000026FF"  # Misc symbols
+        "\U00002B00-\U00002BFF"  # Misc symbols & arrows
+        "\U0001FA70-\U0001FAFF"  # Extended Pictographic (Hearts, etc.)
+        "]+", flags=re.UNICODE
+    )
+    return emoji_pattern.sub(r'', text)
+
+def clean_text_for_tts(text: str) -> str:
+    """
+    Clean text for TTS: remove emojis and Markdown formatting.
+    """
+    # 1. Remove emojis
+    text = remove_emojis(text)
+    
+    # 2. Remove Markdown bold/italic (**text** or *text*)
+    # Replace **text** with text
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    # Replace *text* with text
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    
+    # 3. Remove remaining asterisks and underscores (often used for bullets or separators)
+    text = re.sub(r'[\*_]+', '', text)
+    
+    # 4. Remove Markdown headers (#)
+    text = re.sub(r'#+', '', text)
+    
+    # 5. Remove Markdown links [text](url) -> text
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    
+    # 6. Remove code blocks (backticks)
+    text = re.sub(r'`+', '', text)
+    
+    return text.strip()
+
 def generate_patient_summary(patient_data: dict) -> str:
     """Generate a comprehensive summary of patient's medical profile and lab results"""
     if not patient_data:
@@ -284,52 +351,118 @@ def generate_patient_summary(patient_data: dict) -> str:
     
     return summary
 
-def save_patient_data(user_id: str, data: dict):
-    """Save patient data to Firebase Firestore"""
-    data["last_updated"] = datetime.now().isoformat()
-    db.collection("patients").document(user_id).set(data)
+def generate_patient_summary_html(patient_data: dict) -> str:
+    """
+    Generate patient summary as HTML instead of Markdown.
+    """
+    md_summary = generate_patient_summary(patient_data)
+    html_summary = markdown.markdown(md_summary)
+    return html_summary
 
-def load_patient_data(user_id: str) -> dict:
-    """Load patient data from Firebase Firestore"""
-    doc = db.collection("patients").document(user_id).get()
-    if doc.exists:
-        return doc.to_dict()
+# ==================== DATABASE HELPERS (Hybrid: Firebase + Local) ====================
+
+def get_local_path(collection: str, doc_id: str) -> str:
+    return os.path.join(DATA_DIR, f"{collection}_{doc_id}.json")
+
+def save_local_json(collection: str, doc_id: str, data: dict):
+    try:
+        path = get_local_path(collection, doc_id)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, default=str)
+    except Exception as e:
+        print(f"Error saving local JSON: {e}")
+
+def load_local_json(collection: str, doc_id: str) -> dict:
+    try:
+        path = get_local_path(collection, doc_id)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading local JSON: {e}")
     return None
 
+def delete_local_json(collection: str, doc_id: str):
+    try:
+        path = get_local_path(collection, doc_id)
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        print(f"Error deleting local JSON: {e}")
+
+# --- Unified Data Access Functions ---
+
+def save_patient_data(user_id: str, data: dict):
+    """Save patient data to Firebase or Local JSON"""
+    data["last_updated"] = datetime.now().isoformat()
+    
+    if db:
+        try:
+            db.collection("patients").document(user_id).set(data)
+            return
+        except Exception as e:
+            print(f"Firebase save failed, falling back to local: {e}")
+    
+    # Fallback
+    save_local_json("patients", user_id, data)
+
+def load_patient_data(user_id: str) -> dict:
+    """Load patient data from Firebase or Local JSON"""
+    if db:
+        try:
+            doc = db.collection("patients").document(user_id).get(timeout=5)
+            if doc.exists:
+                return doc.to_dict()
+        except Exception as e:
+            print(f"Firebase load failed, falling back to local: {e}")
+            
+    # Fallback
+    return load_local_json("patients", user_id)
+
 def save_chat_history(user_id: str, messages: list):
-    db.collection("chat_history").document(user_id).set({
+    data = {
         "messages": messages,
         "last_updated": datetime.now().isoformat()
-    })
+    }
+    
+    if db:
+        try:
+            db.collection("chat_history").document(user_id).set(data)
+            return
+        except Exception as e:
+            print(f"Firebase save failed, falling back to local: {e}")
+            
+    # Fallback
+    save_local_json("chat_history", user_id, data)
 
 def load_chat_history(user_id: str) -> list:
-    doc = db.collection("chat_history").document(user_id).get()
-    if doc.exists:
-        return doc.to_dict().get("messages", [])
-    return []
+    if db:
+        try:
+            doc = db.collection("chat_history").document(user_id).get(timeout=5)
+            if doc.exists:
+                return doc.to_dict().get("messages", [])
+            # If connected to DB but doc doesn't exist, return empty (don't check local)
+            # Unless we want to support mixed mode? Let's assume one source of truth.
+            # But if DB fails (exception), we check local.
+            return [] 
+        except Exception as e:
+            print(f"Firebase load failed, falling back to local: {e}")
+    
+    # Fallback
+    data = load_local_json("chat_history", user_id)
+    return data.get("messages", []) if data else []
 
 def delete_chat_history(user_id: str):
-    db.collection("chat_history").document(user_id).delete()
+    if db:
+        try:
+            db.collection("chat_history").document(user_id).delete()
+        except Exception as e:
+            print(f"Firebase delete failed: {e}")
+            
+    # Always try to delete local too, just in case
+    delete_local_json("chat_history", user_id)
 
-import re
 
-def remove_emojis(text: str) -> str:
-    """
-    Remove all emojis from a string.
-    """
-    emoji_pattern = re.compile(
-        "[" 
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags
-        "\U00002700-\U000027BF"  # Dingbats
-        "\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
-        "\U00002600-\U000026FF"  # Misc symbols
-        "\U00002B00-\U00002BFF"  # Misc symbols & arrows
-        "]+", flags=re.UNICODE
-    )
-    return emoji_pattern.sub(r'', text)
 import markdown
 
 def generate_patient_summary_html(patient_data: dict) -> str:
@@ -427,25 +560,54 @@ Instructions:
         # Build conversation prompt
         conversation_prompt = system_context + "\n\n=== CONVERSATION HISTORY ===\n"
         
-        # Add previous chat history
-        for msg in chat_history:
-            role = "Patient" if msg["role"] == "user" else "Dr. HealBot"
-            conversation_prompt += f"\n{role}: {msg['content']}\n"
+        # Check for Groq API Key
+        groq_api_key = os.getenv("GROQ_API_KEY")
         
-        # Add current user message
-        conversation_prompt += f"\nPatient: {user_message}\n\nDr. HealBot:"
+        if groq_api_key:
+            from groq import Groq
+            client = Groq(api_key=groq_api_key)
+            
+            # Construct messages for Groq (OpenAI-compatible)
+            messages = [{"role": "system", "content": system_context}]
+            
+            for msg in chat_history:
+                messages.append({"role": msg["role"], "content": msg["content"]})
+                
+            messages.append({"role": "user", "content": user_message})
+            
+            try:
+                completion = client.chat.completions.create(
+                    messages=messages,
+                    model="llama-3.3-70b-versatile",
+                    temperature=0.7,
+                    max_tokens=1024,
+                )
+                reply_text = completion.choices[0].message.content.strip()
+            except Exception as e:
+                print(f"Groq Error: {e}. Falling back to Gemini if available.")
+                groq_api_key = None # Trigger fallback
         
-        # Call Gemini API
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        response = model.generate_content(
-            conversation_prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=1024,
+        if not groq_api_key:
+            # Fallback to Gemini
+            # Add previous chat history
+            for msg in chat_history:
+                role = "Patient" if msg["role"] == "user" else "Dr. HealBot"
+                conversation_prompt += f"\n{role}: {msg['content']}\n"
+            
+            # Add current user message
+            conversation_prompt += f"\nPatient: {user_message}\n\nDr. HealBot:"
+            
+            # Call Gemini API
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            response = model.generate_content(
+                conversation_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.7,
+                    max_output_tokens=1024,
+                )
             )
-        )
-        
-        reply_text = response.text.strip()
+            
+            reply_text = response.text.strip()
         
         # Update chat history
         chat_history.append({"role": "user", "content": user_message})
@@ -540,8 +702,8 @@ async def get_patient_summary(user_id: str, format: str = "markdown"):
 @app.post("/tts")
 async def text_to_speech(req: TTSRequest):
     try:
-        # Remove emojis from the input text
-        clean_text = remove_emojis(req.text)
+        # Remove emojis and markdown from the input text
+        clean_text = clean_text_for_tts(req.text)
 
         tmp_mp3 = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts = gTTS(text=clean_text, lang=req.language_code)
