@@ -22,9 +22,9 @@ load_dotenv()
 def validate_environment():
     """Validate required environment variables"""
     # FIREBASE_CREDENTIALS is now optional for local fallback
-    # Check for either GEMINI_API_KEY or GROQ_API_KEY
-    if not os.getenv("GEMINI_API_KEY") and not os.getenv("GROQ_API_KEY"):
-        raise ValueError("Missing API Key: Set either GEMINI_API_KEY or GROQ_API_KEY")
+    # Check for GEMINI_API_KEY
+    if not os.getenv("GEMINI_API_KEY"):
+        raise ValueError("Missing API Key: Set GEMINI_API_KEY")
 
 validate_environment()
 
@@ -563,57 +563,35 @@ Instructions:
         # Initialize reply_text
         reply_text = None
         
-        # 1. Try Gemini first (Primary as requested)
-        if os.getenv("GEMINI_API_KEY"):
-            try:
-                # Build prompt for Gemini
-                gemini_prompt = system_context + "\n\n=== CONVERSATION HISTORY ===\n"
-                for msg in chat_history:
-                    role = "Patient" if msg["role"] == "user" else "Dr. HealBot"
-                    gemini_prompt += f"\n{role}: {msg['content']}\n"
-                gemini_prompt += f"\nPatient: {user_message}\n\nDr. HealBot:"
-                
-                # Call Gemini API
-                # using the 1.5 flash model which is faster and very capable, or 2.0-flash as in previous code if available
-                # sticking to what was there: 'gemini-2.0-flash' or fallback to standard pro/flash
-                model = genai.GenerativeModel('gemini-2.0-flash-exp') 
-                response = model.generate_content(
-                    gemini_prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.7,
-                        max_output_tokens=1024,
-                    )
+        # Strictly use Gemini
+        if not os.getenv("GEMINI_API_KEY"):
+             raise ValueError("GEMINI_API_KEY is not set.")
+
+        try:
+            # Build prompt for Gemini
+            gemini_prompt = system_context + "\n\n=== CONVERSATION HISTORY ===\n"
+            for msg in chat_history:
+                role = "Patient" if msg["role"] == "user" else "Dr. HealBot"
+                gemini_prompt += f"\n{role}: {msg['content']}\n"
+            gemini_prompt += f"\nPatient: {user_message}\n\nDr. HealBot:"
+            
+            # Call Gemini API
+            # Using the 2.0 Flash Experimental model as requested/configured previously
+            model = genai.GenerativeModel('gemini-2.0-flash-exp') 
+            response = model.generate_content(
+                gemini_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.7,
+                    max_output_tokens=1024,
                 )
-                reply_text = response.text.strip()
-            except Exception as e:
-                print(f"Gemini Error: {e}. Falling back to Groq if available.")
-        
-        # 2. Fallback to Groq if Gemini failed or key missing
-        if not reply_text:
-            groq_api_key = os.getenv("GROQ_API_KEY")
-            if groq_api_key:
-                from groq import Groq
-                client = Groq(api_key=groq_api_key)
-                
-                # Construct messages for Groq
-                messages = [{"role": "system", "content": system_context}]
-                for msg in chat_history:
-                    messages.append({"role": msg["role"], "content": msg["content"]})
-                messages.append({"role": "user", "content": user_message})
-                
-                try:
-                    completion = client.chat.completions.create(
-                        messages=messages,
-                        model="llama-3.3-70b-versatile",
-                        temperature=0.7,
-                        max_tokens=1024,
-                    )
-                    reply_text = completion.choices[0].message.content.strip()
-                except Exception as e:
-                    print(f"Groq Error: {e}")
+            )
+            reply_text = response.text.strip()
+        except Exception as e:
+            print(f"Gemini Error: {e}")
+            raise HTTPException(status_code=500, detail=f"AI Service Error: {str(e)}")
         
         if not reply_text:
-            raise HTTPException(status_code=500, detail="Unable to generate response from any AI provider.")
+            raise HTTPException(status_code=500, detail="Unable to generate response from Gemini.")
         
         # Update chat history
         chat_history.append({"role": "user", "content": user_message})

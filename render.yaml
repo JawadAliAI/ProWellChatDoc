@@ -13,8 +13,7 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false
-      - key: GROQ_API_KEY
-        sync: false
+
       - key: FIREBASE_CREDENTIALS
         sync: false
         description: "The content of serviceAccountKey.json as a string, OR a path to the file if using a Disk."
