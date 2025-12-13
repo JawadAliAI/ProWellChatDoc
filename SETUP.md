@@ -29,7 +29,6 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # Edit .env and add your API keys:
-# - Get Groq API key from: https://console.groq.com/
 # - Get Gemini API key from: https://makersuite.google.com/app/apikey
 ```
 
@@ -49,8 +48,7 @@ Navigate to: http://localhost:8000
 2. **Create Web Service** on Render Dashboard
 3. **Connect Repository**
 4. **Set Environment Variables**:
-   - `GROQ_API_KEY` = your_groq_key
-   - `GEMINI_API_KEY` = your_gemini_key (optional)
+   - `GEMINI_API_KEY` = your_gemini_key
    - `FIREBASE_CREDENTIALS` = your_firebase_json (optional)
 5. **Deploy!**
 
@@ -65,7 +63,7 @@ Navigate to: http://localhost:8000
 ### "Missing API Key" Error
 - Check your `.env` file exists
 - Verify API keys are set correctly
-- At least one of GROQ_API_KEY or GEMINI_API_KEY must be set
+- GEMINI_API_KEY must be set
 
 ### Port Already in Use
 - Change port: `uvicorn app:app --port 8001`
