@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: healbot-api
+    env: docker
+    region: oregon 
+    plan: free
+    branch: main 
+    # Use the Dockerfile in the root
+    dockerContext: .
+    dockerfilePath: Dockerfile
+    
+    # Environment variables to be set in the Render Dashboard
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FIREBASE_CREDENTIALS
+        sync: false
+        description: "The content of serviceAccountKey.json as a string, OR a path to the file if using a Disk."

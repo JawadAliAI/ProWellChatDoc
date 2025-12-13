@@ -560,54 +560,60 @@ Instructions:
         # Build conversation prompt
         conversation_prompt = system_context + "\n\n=== CONVERSATION HISTORY ===\n"
         
-        # Check for Groq API Key
-        groq_api_key = os.getenv("GROQ_API_KEY")
+        # Initialize reply_text
+        reply_text = None
         
-        if groq_api_key:
-            from groq import Groq
-            client = Groq(api_key=groq_api_key)
-            
-            # Construct messages for Groq (OpenAI-compatible)
-            messages = [{"role": "system", "content": system_context}]
-            
-            for msg in chat_history:
-                messages.append({"role": msg["role"], "content": msg["content"]})
-                
-            messages.append({"role": "user", "content": user_message})
-            
+        # 1. Try Gemini first (Primary as requested)
+        if os.getenv("GEMINI_API_KEY"):
             try:
-                completion = client.chat.completions.create(
-                    messages=messages,
-                    model="llama-3.3-70b-versatile",
-                    temperature=0.7,
-                    max_tokens=1024,
+                # Build prompt for Gemini
+                gemini_prompt = system_context + "\n\n=== CONVERSATION HISTORY ===\n"
+                for msg in chat_history:
+                    role = "Patient" if msg["role"] == "user" else "Dr. HealBot"
+                    gemini_prompt += f"\n{role}: {msg['content']}\n"
+                gemini_prompt += f"\nPatient: {user_message}\n\nDr. HealBot:"
+                
+                # Call Gemini API
+                # using the 1.5 flash model which is faster and very capable, or 2.0-flash as in previous code if available
+                # sticking to what was there: 'gemini-2.0-flash' or fallback to standard pro/flash
+                model = genai.GenerativeModel('gemini-2.0-flash-exp') 
+                response = model.generate_content(
+                    gemini_prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=0.7,
+                        max_output_tokens=1024,
+                    )
                 )
-                reply_text = completion.choices[0].message.content.strip()
+                reply_text = response.text.strip()
             except Exception as e:
-                print(f"Groq Error: {e}. Falling back to Gemini if available.")
-                groq_api_key = None # Trigger fallback
+                print(f"Gemini Error: {e}. Falling back to Groq if available.")
         
-        if not groq_api_key:
-            # Fallback to Gemini
-            # Add previous chat history
-            for msg in chat_history:
-                role = "Patient" if msg["role"] == "user" else "Dr. HealBot"
-                conversation_prompt += f"\n{role}: {msg['content']}\n"
-            
-            # Add current user message
-            conversation_prompt += f"\nPatient: {user_message}\n\nDr. HealBot:"
-            
-            # Call Gemini API
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response = model.generate_content(
-                conversation_prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.7,
-                    max_output_tokens=1024,
-                )
-            )
-            
-            reply_text = response.text.strip()
+        # 2. Fallback to Groq if Gemini failed or key missing
+        if not reply_text:
+            groq_api_key = os.getenv("GROQ_API_KEY")
+            if groq_api_key:
+                from groq import Groq
+                client = Groq(api_key=groq_api_key)
+                
+                # Construct messages for Groq
+                messages = [{"role": "system", "content": system_context}]
+                for msg in chat_history:
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+                messages.append({"role": "user", "content": user_message})
+                
+                try:
+                    completion = client.chat.completions.create(
+                        messages=messages,
+                        model="llama-3.3-70b-versatile",
+                        temperature=0.7,
+                        max_tokens=1024,
+                    )
+                    reply_text = completion.choices[0].message.content.strip()
+                except Exception as e:
+                    print(f"Groq Error: {e}")
+        
+        if not reply_text:
+            raise HTTPException(status_code=500, detail="Unable to generate response from any AI provider.")
         
         # Update chat history
         chat_history.append({"role": "user", "content": user_message})
