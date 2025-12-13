@@ -1,11 +1,11 @@
 # 🩺 Dr. HealBot - AI Medical Consultation Assistant
 
-Dr. HealBot is an intelligent medical chatbot application that provides preliminary medical guidance, symptom assessment, and health recommendations. It leverages advanced AI models (Groq's Llama 3.3 and Google's Gemini) to simulate a natural doctor-patient consultation.
+Dr. HealBot is an intelligent medical chatbot application that provides preliminary medical guidance, symptom assessment, and health recommendations. It leverages **Google's Gemini 2.0 Flash** model to simulate a natural, empathetic doctor-patient consultation.
 
 ## 🚀 Features
 
 - **Natural Conversation**: Simulates a real doctor's consultation flow with one question at a time
-- **AI-Powered**: Uses Groq's Llama 3.3 70B model (with Gemini fallback)
+- **AI-Powered**: Uses Google's Gemini 2.0 Flash Experimental model for fast, high-quality responses
 - **Voice Interaction**: Supports voice input (Speech-to-Text) and voice output (Text-to-Speech)
 - **Patient History**: Remembers patient details and chat history for personalized responses
 - **Medical Knowledge**: Provides advice on symptoms, medications (OTC), and lifestyle
@@ -44,8 +44,8 @@ Dr. HealBot is an intelligent medical chatbot application that provides prelimin
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/finalChatDoc.git
-cd finalChatDoc
+git clone https://github.com/JawadAliAI/ProWellChatDoc.git
+cd ProWellChatDoc
 ```
 
 ### 2. Set Up Virtual Environment
@@ -72,19 +72,15 @@ pip install -r requirements.txt
 
 2. Edit `.env` and add your API keys:
    ```env
-   # Primary AI Provider (Groq - Fast and Free)
-   GROQ_API_KEY=your_groq_api_key_here
-   
-   # Fallback AI Provider (Optional)
+   # Gemini API Key (Required)
    GEMINI_API_KEY=your_gemini_api_key_here
    
    # Firebase (Optional - for persistent storage)
    # FIREBASE_CREDENTIALS=path/to/serviceAccountKey.json
    ```
 
-3. **Get API Keys**:
-   - **Groq API Key** (Recommended): [https://console.groq.com/](https://console.groq.com/)
-   - **Gemini API Key** (Optional): [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
+3. **Get API Key**:
+   - **Gemini API Key**: [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
 
 ### 5. Run the Application
 ```bash
@@ -101,18 +97,16 @@ http://localhost:8000
 
 ## 🔧 Deployment (Render)
 
-### Option 1: Deploy via Render Dashboard
+### Option 1: Deploy via Blueprints (Recommended)
+1. Fork this repository
+2. Go to Render Dashboard -> Blueprints
+3. Connect your repo
+4. It will automatically detect `render.yaml`
+5. Input your `GEMINI_API_KEY` and invalid/dummy `FIREBASE_CREDENTIALS` (if not using Firebase)
 
-#### Step 1: Push to GitHub
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin YOUR_GITHUB_REPO_URL
-git push -u origin main
-```
+### Option 2: Manual Deployment
 
-#### Step 2: Create Web Service on Render
+#### Step 1: Create Web Service on Render
 
 1. Go to [Render Dashboard](https://dashboard.render.com/)
 2. Click **"New +"** → **"Web Service"**
@@ -121,23 +115,16 @@ git push -u origin main
 
    **Basic Settings:**
    - **Name**: `dr-healbot`
-   - **Region**: Choose closest to your users
-   - **Branch**: `main`
    - **Runtime**: `Docker`
-   - **Instance Type**: `Free` (or paid for better performance)
+   - **Instance Type**: `Free`
 
    **Environment Variables:**
-   Click **"Advanced"** and add:
-   - Key: `GROQ_API_KEY` | Value: Your Groq API key
-   - Key: `GEMINI_API_KEY` | Value: Your Gemini API key (optional)
+   - Key: `GEMINI_API_KEY` | Value: Your Gemini API key
    - Key: `FIREBASE_CREDENTIALS` | Value: Your Firebase credentials JSON (optional)
 
 5. Click **"Create Web Service"**
 
-#### Step 3: Wait for Deployment
-Render will build and deploy your application (5-10 minutes for first deployment)
-
-#### Step 4: Access Your App
+#### Step 2: Access Your App
 You'll get a URL like: `https://dr-healbot.onrender.com`
 
 ---
@@ -146,11 +133,8 @@ You'll get a URL like: `https://dr-healbot.onrender.com`
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `GROQ_API_KEY` | Groq API key for AI chat (Primary) | ✅ Yes* |
-| `GEMINI_API_KEY` | Gemini API key for AI chat (Fallback) | ⚠️ Optional |
+| `GEMINI_API_KEY` | Gemini API key for AI chat | ✅ Yes |
 | `FIREBASE_CREDENTIALS` | Firebase service account JSON or path | ⚠️ Optional |
-
-*Either `GROQ_API_KEY` or `GEMINI_API_KEY` is required
 
 ---
 
@@ -162,6 +146,7 @@ finalChatDoc/
 ├── index.html              # Frontend interface
 ├── requirements.txt        # Python dependencies
 ├── Dockerfile              # Docker configuration
+├── render.yaml             # Render deployment config
 ├── .dockerignore          # Files to exclude from Docker
 ├── .gitignore             # Files to exclude from Git
 ├── .env.example           # Example environment variables
@@ -172,34 +157,10 @@ finalChatDoc/
 
 ---
 
-## 🧪 Testing Your Deployment
-
-### Test the API:
-```bash
-# Health check
-curl https://YOUR_APP.onrender.com/
-
-# Test chat endpoint
-curl -X POST https://YOUR_APP.onrender.com/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "I have a headache",
-    "user_id": "test_user_123",
-    "language": "auto"
-  }'
-```
-
-### Test the Frontend:
-Open `https://YOUR_APP.onrender.com/` in your browser
-
----
-
 ## ⚙️ Technology Stack
 
 - **Backend**: FastAPI (Python)
-- **AI Models**: 
-  - Groq (Llama 3.3 70B Versatile) - Primary
-  - Google Gemini 2.0 Flash - Fallback
+- **AI Models**: Google Gemini 2.0 Flash / Pro (Exclusive)
 - **TTS**: Google Text-to-Speech (gTTS)
 - **STT**: Google Speech Recognition
 - **Database**: Firebase Firestore (optional) / Local JSON
@@ -220,32 +181,7 @@ Open `https://YOUR_APP.onrender.com/` in your browser
 - **Use Firebase** for persistent storage in production
 
 ### API Rate Limits:
-- **Groq**: Generous free tier with fast responses
-- **Gemini**: Free tier with rate limits (fallback only)
-
----
-
-## 🐛 Troubleshooting
-
-### Build Fails:
-- Verify all files are committed to GitHub
-- Check that `requirements.txt` is present
-- Review Render build logs for specific errors
-
-### Application Crashes:
-- Ensure `GROQ_API_KEY` or `GEMINI_API_KEY` is set correctly
-- View logs in Render Dashboard → Your Service → Logs
-- Check you're not exceeding API rate limits
-
-### Slow Response:
-- Free tier spins down after inactivity
-- First request after spin down takes 30+ seconds
-- Consider upgrading to paid tier for always-on service
-
-### Import Errors:
-- Make sure all dependencies are in `requirements.txt`
-- Verify virtual environment is activated
-- Try `pip install -r requirements.txt --force-reinstall`
+- **Gemini**: Free tier has rate limits but is generally sufficient for demo purposes.
 
 ---
 
@@ -257,14 +193,14 @@ This project is open source and available under the MIT License.
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
+Contributions, issues, and feature requests are welcome!
 
 ---
 
 ## 👨‍💻 Author
 
-**Your Name**
-- GitHub: [@YOUR_USERNAME](https://github.com/YOUR_USERNAME)
+**Jawad Ali**
+- GitHub: [@JawadAliAI](https://github.com/JawadAliAI)
 
 ---
 
