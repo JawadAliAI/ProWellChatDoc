@@ -497,10 +497,14 @@
   </div>
 
   <script>
-    // Auto-detect API URL
-    const API = window.location.origin;
-    console.log("API URL:", API);
-
+    // Auto-detect API URL with manual override capability
+    // If we are on localhost, look for localhost:10000 or 8000
+    // If on render, use relative path or full domain
+    let API = window.location.origin;
+    if (API.includes("file://")) {
+      API = "http://localhost:8000"; // Fallback for local testing opening file directly
+    }
+    console.log("Using API URL:", API);
 
     // Elements
     const toggler = document.getElementById('toggler');
