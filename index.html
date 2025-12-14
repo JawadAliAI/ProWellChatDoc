@@ -652,15 +652,30 @@
     closeBtn.onclick = () => document.body.classList.remove('show-chatbot');
 
     // Load chat history
+    // Load chat history with timeout/feedback
     const loadChatHistory = async (uid) => {
       try {
-        const res = await fetch(`${API}/chat-history/${encodeURIComponent(uid)}`);
-        if (!res.ok) return [];
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          startBtn.textContent = 'Waking up server...';
+        }, 3000);
+
+        const res = await fetch(`${API}/chat-history/${encodeURIComponent(uid)}`, {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          throw new Error(`Server error: ${res.status}`);
+        }
+
         const data = await res.json();
         return data.chat_history || [];
       } catch (e) {
         console.error('Failed to load chat history:', e);
-        return [];
+        // If it's a fetch error, we might be offline or server down
+        throw e;
       }
     };
 
