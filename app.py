@@ -198,7 +198,9 @@ IMPORTANT:
 - This is preliminary guidance, not a substitute for professional care.
 - Never provide non-medical information.
 - Be conversational first, comprehensive later.
-- response has No Emoji or  No emojis No smileys No flags No pictographs
+- STRICTLY NO EMOJIS, NO ICONS, NO SMILEYS.
+- STRICTLY NO MARKDOWN FORMATTING like bold (**text**) or italics (*text*). Use plain text or CAPITALIZATION for emphasis if needed.
+- Do not use bullet points with symbols (like * or -). Use plain lists or numbers.
 """
 
 # ==================== HELPER FUNCTIONS ====================
@@ -577,7 +579,7 @@ Instructions:
             
             # Call Gemini API
             # Switched to stable 1.5-flash to avoid experimental quota limits
-            model = genai.GenerativeModel('gemini-1.5-flash') 
+            model = genai.GenerativeModel('gemini-2.5-flash') 
             response = model.generate_content(
                 gemini_prompt,
                 generation_config=genai.types.GenerationConfig(
