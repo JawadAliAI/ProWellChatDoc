@@ -497,10 +497,13 @@
   </div>
 
   <script>
-    // Auto-detect API URL: use current origin for deployed version, empty for local
-    const API = "";
-
-
+    // Auto-detect API URL
+    let API = window.location.origin;
+    // If opening as a local file (file://) or if origin is null, default to local server
+    if (window.location.protocol === 'file:' || API === 'null') {
+      API = "http://127.0.0.1:8000";
+    }
+    console.log("Using API URL:", API);
     // Elements
     const toggler = document.getElementById('toggler');
     const chatbot = document.getElementById('chatbot');
