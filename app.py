@@ -576,8 +576,8 @@ Instructions:
             gemini_prompt += f"\nPatient: {user_message}\n\nDr. HealBot:"
             
             # Call Gemini API
-            # Using the 2.0 Flash Experimental model as requested/configured previously
-            model = genai.GenerativeModel('gemini-2.0-flash-exp') 
+            # Switched to stable 1.5-flash to avoid experimental quota limits
+            model = genai.GenerativeModel('gemini-1.5-flash') 
             response = model.generate_content(
                 gemini_prompt,
                 generation_config=genai.types.GenerationConfig(
