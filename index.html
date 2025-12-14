@@ -731,52 +731,68 @@
     };
 
     // Modal handler
+    // Modal handler
     startBtn.onclick = async () => {
-      const name = nameInput.value.trim();
-      if (!name) {
-        alert('Please enter your name');
-        return;
-      }
+      try {
+        const name = nameInput.value.trim();
+        if (!name) {
+          alert('Please enter your name');
+          return;
+        }
 
-      startBtn.textContent = 'Loading...';
-      startBtn.disabled = true;
+        startBtn.textContent = 'Connecting...';
+        startBtn.disabled = true;
 
-      userId = name.toLowerCase().replace(/\s+/g, '_');
-      userName = name;
+        userId = name.toLowerCase().replace(/\s+/g, '_');
+        userName = name;
 
-      const history = await loadChatHistory(userId);
-
-      if (history && history.length > 0) {
-        const loadPrevious = confirm(
-          `Welcome back ${userName}! You have ${history.length} messages in your previous conversation.\n\n` +
-          `Click OK to continue from where you left off, or Cancel to start a fresh conversation.`
+        // Add a timeout to the fetch to prevent infinite hanging
+        const fetchPromise = loadChatHistory(userId);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out. Server is not responding.')), 10000)
         );
 
-        if (loadPrevious) {
-          chatHistory = history;
-          await initChat(true);
-          modal.classList.add('hidden');
+        console.log("Fetching history for:", userId);
+        const history = await Promise.race([fetchPromise, timeoutPromise]);
+        console.log("History loaded:", history);
 
-          localStorage.setItem('healbot_user_id', userId);
-          localStorage.setItem('healbot_user_name', userName);
+        if (history && history.length > 0) {
+          const loadPrevious = confirm(
+            `Welcome back ${userName}! You have ${history.length} messages in your previous conversation.\n\n` +
+            `Click OK to continue from where you left off, or Cancel to start a fresh conversation.`
+          );
 
-          startBtn.textContent = 'Start Consultation';
-          startBtn.disabled = false;
-          return;
-        } else {
-          await deleteChatHistory(userId);
+          if (loadPrevious) {
+            chatHistory = history;
+            await initChat(true);
+            modal.classList.add('hidden');
+
+            localStorage.setItem('healbot_user_id', userId);
+            localStorage.setItem('healbot_user_name', userName);
+
+            startBtn.textContent = 'Start Consultation';
+            startBtn.disabled = false;
+            return;
+          } else {
+            await deleteChatHistory(userId);
+          }
         }
+
+        chatHistory = [];
+        await initChat(false);
+        modal.classList.add('hidden');
+
+        localStorage.setItem('healbot_user_id', userId);
+        localStorage.setItem('healbot_user_name', userName);
+
+        startBtn.textContent = 'Start Consultation';
+        startBtn.disabled = false;
+      } catch (err) {
+        console.error("Login Error:", err);
+        alert("Connection Error: " + err.message + "\n\nMake sure the server is running!");
+        startBtn.textContent = 'Start Consultation';
+        startBtn.disabled = false;
       }
-
-      chatHistory = [];
-      await initChat(false);
-      modal.classList.add('hidden');
-
-      localStorage.setItem('healbot_user_id', userId);
-      localStorage.setItem('healbot_user_name', userName);
-
-      startBtn.textContent = 'Start Consultation';
-      startBtn.disabled = false;
     };
 
     // New session
