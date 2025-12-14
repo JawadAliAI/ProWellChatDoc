@@ -577,7 +577,7 @@ Instructions:
             
             # Call Gemini API
             # Switched to stable 1.5-flash to avoid experimental quota limits
-            model = genai.GenerativeModel('gemini-1.5-flash') 
+            model = genai.GenerativeModel('gemini-2.5-flash') 
             response = model.generate_content(
                 gemini_prompt,
                 generation_config=genai.types.GenerationConfig(
