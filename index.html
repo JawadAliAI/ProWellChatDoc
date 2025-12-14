@@ -747,9 +747,10 @@
         userName = name;
 
         // Add a timeout to the fetch to prevent infinite hanging
+        // Increased to 90 seconds for Render Free Tier cold starts
         const fetchPromise = loadChatHistory(userId);
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timed out. Server is not responding.')), 10000)
+          setTimeout(() => reject(new Error('Request timed out. Server is waking up (this can take 60s+)... try again!')), 90000)
         );
 
         console.log("Fetching history for:", userId);
