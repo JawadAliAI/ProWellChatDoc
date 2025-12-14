@@ -497,14 +497,9 @@
   </div>
 
   <script>
-    // Auto-detect API URL with manual override capability
-    // If we are on localhost, look for localhost:10000 or 8000
-    // If on render, use relative path or full domain
-    let API = window.location.origin;
-    if (API.includes("file://")) {
-      API = "http://localhost:8000"; // Fallback for local testing opening file directly
-    }
-    console.log("Using API URL:", API);
+    // Auto-detect API URL: use current origin for deployed version, empty for local
+    const API = "";
+
 
     // Elements
     const toggler = document.getElementById('toggler');
@@ -656,30 +651,15 @@
     closeBtn.onclick = () => document.body.classList.remove('show-chatbot');
 
     // Load chat history
-    // Load chat history with timeout/feedback
     const loadChatHistory = async (uid) => {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-          startBtn.textContent = 'Waking up server...';
-        }, 3000);
-
-        const res = await fetch(`${API}/chat-history/${encodeURIComponent(uid)}`, {
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!res.ok) {
-          throw new Error(`Server error: ${res.status}`);
-        }
-
+        const res = await fetch(`${API}/chat-history/${encodeURIComponent(uid)}`);
+        if (!res.ok) return [];
         const data = await res.json();
         return data.chat_history || [];
       } catch (e) {
         console.error('Failed to load chat history:', e);
-        // If it's a fetch error, we might be offline or server down
-        throw e;
+        return [];
       }
     };
 
@@ -749,60 +729,51 @@
 
     // Modal handler
     startBtn.onclick = async () => {
-      try {
-        const name = nameInput.value.trim();
-        if (!name) {
-          alert('Please enter your name');
-          return;
-        }
-
-        startBtn.textContent = 'Connecting...';
-        startBtn.disabled = true;
-
-        userId = name.toLowerCase().replace(/\s+/g, '_');
-        userName = name;
-
-        console.log("Fetching history for:", userId);
-        const history = await loadChatHistory(userId);
-        console.log("History loaded:", history);
-
-        if (history && history.length > 0) {
-          const loadPrevious = confirm(
-            `Welcome back ${userName}! You have ${history.length} messages in your previous conversation.\n\n` +
-            `Click OK to continue from where you left off, or Cancel to start a fresh conversation.`
-          );
-
-          if (loadPrevious) {
-            chatHistory = history;
-            await initChat(true);
-            modal.classList.add('hidden');
-
-            localStorage.setItem('healbot_user_id', userId);
-            localStorage.setItem('healbot_user_name', userName);
-
-            startBtn.textContent = 'Start Consultation';
-            startBtn.disabled = false;
-            return;
-          } else {
-            await deleteChatHistory(userId);
-          }
-        }
-
-        chatHistory = [];
-        await initChat(false);
-        modal.classList.add('hidden');
-
-        localStorage.setItem('healbot_user_id', userId);
-        localStorage.setItem('healbot_user_name', userName);
-
-        startBtn.textContent = 'Start Consultation';
-        startBtn.disabled = false;
-      } catch (err) {
-        console.error("Login Error:", err);
-        alert("Connection Error: " + err.message + "\nPlease check your internet or try refreshing.");
-        startBtn.textContent = 'Start Consultation';
-        startBtn.disabled = false;
+      const name = nameInput.value.trim();
+      if (!name) {
+        alert('Please enter your name');
+        return;
       }
+
+      startBtn.textContent = 'Loading...';
+      startBtn.disabled = true;
+
+      userId = name.toLowerCase().replace(/\s+/g, '_');
+      userName = name;
+
+      const history = await loadChatHistory(userId);
+
+      if (history && history.length > 0) {
+        const loadPrevious = confirm(
+          `Welcome back ${userName}! You have ${history.length} messages in your previous conversation.\n\n` +
+          `Click OK to continue from where you left off, or Cancel to start a fresh conversation.`
+        );
+
+        if (loadPrevious) {
+          chatHistory = history;
+          await initChat(true);
+          modal.classList.add('hidden');
+
+          localStorage.setItem('healbot_user_id', userId);
+          localStorage.setItem('healbot_user_name', userName);
+
+          startBtn.textContent = 'Start Consultation';
+          startBtn.disabled = false;
+          return;
+        } else {
+          await deleteChatHistory(userId);
+        }
+      }
+
+      chatHistory = [];
+      await initChat(false);
+      modal.classList.add('hidden');
+
+      localStorage.setItem('healbot_user_id', userId);
+      localStorage.setItem('healbot_user_name', userName);
+
+      startBtn.textContent = 'Start Consultation';
+      startBtn.disabled = false;
     };
 
     // New session
