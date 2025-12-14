@@ -497,8 +497,9 @@
   </div>
 
   <script>
-    // Auto-detect API URL: use current origin for deployed version, empty for local
-    const API = "";
+    // Auto-detect API URL
+    const API = window.location.origin;
+    console.log("API URL:", API);
 
 
     // Elements
@@ -729,51 +730,60 @@
 
     // Modal handler
     startBtn.onclick = async () => {
-      const name = nameInput.value.trim();
-      if (!name) {
-        alert('Please enter your name');
-        return;
-      }
-
-      startBtn.textContent = 'Loading...';
-      startBtn.disabled = true;
-
-      userId = name.toLowerCase().replace(/\s+/g, '_');
-      userName = name;
-
-      const history = await loadChatHistory(userId);
-
-      if (history && history.length > 0) {
-        const loadPrevious = confirm(
-          `Welcome back ${userName}! You have ${history.length} messages in your previous conversation.\n\n` +
-          `Click OK to continue from where you left off, or Cancel to start a fresh conversation.`
-        );
-
-        if (loadPrevious) {
-          chatHistory = history;
-          await initChat(true);
-          modal.classList.add('hidden');
-
-          localStorage.setItem('healbot_user_id', userId);
-          localStorage.setItem('healbot_user_name', userName);
-
-          startBtn.textContent = 'Start Consultation';
-          startBtn.disabled = false;
+      try {
+        const name = nameInput.value.trim();
+        if (!name) {
+          alert('Please enter your name');
           return;
-        } else {
-          await deleteChatHistory(userId);
         }
+
+        startBtn.textContent = 'Connecting...';
+        startBtn.disabled = true;
+
+        userId = name.toLowerCase().replace(/\s+/g, '_');
+        userName = name;
+
+        console.log("Fetching history for:", userId);
+        const history = await loadChatHistory(userId);
+        console.log("History loaded:", history);
+
+        if (history && history.length > 0) {
+          const loadPrevious = confirm(
+            `Welcome back ${userName}! You have ${history.length} messages in your previous conversation.\n\n` +
+            `Click OK to continue from where you left off, or Cancel to start a fresh conversation.`
+          );
+
+          if (loadPrevious) {
+            chatHistory = history;
+            await initChat(true);
+            modal.classList.add('hidden');
+
+            localStorage.setItem('healbot_user_id', userId);
+            localStorage.setItem('healbot_user_name', userName);
+
+            startBtn.textContent = 'Start Consultation';
+            startBtn.disabled = false;
+            return;
+          } else {
+            await deleteChatHistory(userId);
+          }
+        }
+
+        chatHistory = [];
+        await initChat(false);
+        modal.classList.add('hidden');
+
+        localStorage.setItem('healbot_user_id', userId);
+        localStorage.setItem('healbot_user_name', userName);
+
+        startBtn.textContent = 'Start Consultation';
+        startBtn.disabled = false;
+      } catch (err) {
+        console.error("Login Error:", err);
+        alert("Connection Error: " + err.message + "\nPlease check your internet or try refreshing.");
+        startBtn.textContent = 'Start Consultation';
+        startBtn.disabled = false;
       }
-
-      chatHistory = [];
-      await initChat(false);
-      modal.classList.add('hidden');
-
-      localStorage.setItem('healbot_user_id', userId);
-      localStorage.setItem('healbot_user_name', userName);
-
-      startBtn.textContent = 'Start Consultation';
-      startBtn.disabled = false;
     };
 
     // New session
